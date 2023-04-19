@@ -96,20 +96,25 @@ def test(model, device, test_loader):
     return testing_acc, testing_loss
 
 
-def plot(epoches, performance, title):
+def plot(epochs, performance, title, run=None):
     """
     plot the model performance
-    :param epoches: recorded epoches
+    :param epochs: recorded epochs
     :param performance: recorded performance
     :return:
     """
-    plt.plot(epoches, performance)
+    plt.plot(epochs, performance)
     plt.xlabel('Epoch')
+    plt.ylabel('Percentage')
+
+    if run is not None:
+        title += f" (Run {run})" if run != 'mean' else " (Mean)"
+
     plt.title(title)
     plt.show()
 
 
-def run(config):
+def run(config, run_number):
     use_cuda = not config.no_cuda and torch.cuda.is_available()
     # use_mps = not config.no_mps and torch.backends.mps.is_available()
 
@@ -117,6 +122,7 @@ def run(config):
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
+    # Set DataLoader arguments based on whether CUDA is available
     train_kwargs = {'batch_size': config.batch_size, 'shuffle': True}
     test_kwargs = {'batch_size': config.test_batch_size, 'shuffle': True}
     if use_cuda:
@@ -125,7 +131,7 @@ def run(config):
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
 
-    # download data
+    # Load and preprocess the MNIST dataset
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
@@ -133,14 +139,16 @@ def run(config):
     dataset1 = datasets.MNIST('./data', train=True, download=True, transform=transform)
     dataset2 = datasets.MNIST('./data', train=False, transform=transform)
 
+    # Initialize DataLoaders for training and testing
     train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
+    # Initialize the model, optimizer, and learning rate scheduler
     model = Net().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=config.lr)
 
     """record the performance"""
-    epoches = []
+    epochs = []
     training_accuracies = []
     training_loss = []
     testing_accuracies = []
@@ -155,19 +163,16 @@ def run(config):
         testing_accuracies.append(test_acc)
         testing_loss.append(test_loss)
         scheduler.step()
-        epoches.append(epoch)
+        epochs.append(epoch)
 
-    """plotting training performance with the records"""
-    plot(epoches, training_loss, 'Training Loss')
-
-    """plotting testing performance with the records"""
-    plot(epoches, training_accuracies, 'Testing Accuracy')
-    plot(epoches, testing_loss, 'Testing Loss')
+    plot(epochs, training_accuracies, 'Training Accuracy', run_number)
+    plot(epochs, training_loss, 'Training Loss', run_number)
+    plot(epochs, training_accuracies, 'Testing Accuracy', run_number)
+    plot(epochs, testing_loss, 'Testing Loss', run_number)
 
     with open(f'results_{config.seed}.txt', 'w') as f:
-        for epoch, train_loss, test_acc, test_loss in zip(epoches, training_loss, testing_accuracies, testing_loss):
+        for epoch, train_loss, test_acc, test_loss in zip(epochs, training_loss, testing_accuracies, testing_loss):
             f.write(f"{epoch} {train_loss} {test_acc} {test_loss}\n")
-
 
     if config.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
@@ -194,18 +199,20 @@ def plot_mean():
             results[epoch]['test_accuracies'].append(test_acc)
             results[epoch]['test_losses'].append(test_loss)
 
-    epoches = list(results.keys())
-    mean_train_losses = [np.mean(results[epoch]['train_losses']) for epoch in epoches]
-    mean_test_accuracies = [np.mean(results[epoch]['test_accuracies']) for epoch in epoches]
-    mean_test_losses = [np.mean(results[epoch]['test_losses']) for epoch in epoches]
-    plot(epoches, mean_train_losses, 'Mean Training Loss')
-    plot(epoches, mean_test_accuracies, 'Mean Testing Accuracy')
-    plot(epoches, mean_test_losses, 'Mean Testing Loss')
+    epochs = list(results.keys())
+    mean_train_accuracies = [np.mean(results[epoch]['train_accuracies']) for epoch in epochs]
+    mean_train_losses = [np.mean(results[epoch]['train_losses']) for epoch in epochs]
+    mean_test_accuracies = [np.mean(results[epoch]['test_accuracies']) for epoch in epochs]
+    mean_test_losses = [np.mean(results[epoch]['test_losses']) for epoch in epochs]
+    plot(epochs, mean_train_accuracies, 'Mean Training Accuracy', 'mean')
+    plot(epochs, mean_train_losses, 'Mean Training Loss', 'mean')
+    plot(epochs, mean_test_accuracies, 'Mean Testing Accuracy', 'mean')
+    plot(epochs, mean_test_losses, 'Mean Testing Loss', 'mean')
 
 
-def run_with_seed(config, seed):
+def run_with_seed(config, seed, run_number):
     config.seed = seed
-    run(config)
+    run(config, run_number)
 
 
 if __name__ == '__main__':
@@ -216,10 +223,11 @@ if __name__ == '__main__':
 
     # Create a list of processes
     processes = []
-    seeds = [123, 321, 666]
+    seeds = config.seeds
+
     # Initialize the processes with the specified random seeds
-    for seed in seeds:
-        process = mp.Process(target=run_with_seed, args=(config, seed))
+    for idx, seed in enumerate(seeds):
+        process = mp.Process(target=run_with_seed, args=(config, seed, idx + 1))
         processes.append(process)
 
     # Start the processes

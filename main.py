@@ -171,8 +171,9 @@ def run(config, run_number):
     plot(epochs, testing_loss, 'Testing Loss', run_number)
 
     with open(f'results_{config.seed}.txt', 'w') as f:
-        for epoch, train_loss, test_acc, test_loss in zip(epochs, training_loss, testing_accuracies, testing_loss):
-            f.write(f"{epoch} {train_loss} {test_acc} {test_loss}\n")
+        for epoch, train_acc, train_loss, test_acc, test_loss in zip(epochs, training_accuracies, training_loss,
+                                                                     testing_accuracies, testing_loss):
+            f.write(f"{epoch} {train_acc} {train_loss} {test_acc} {test_loss}\n")
 
     if config.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
@@ -191,10 +192,11 @@ def plot_mean():
             lines = f.readlines()
 
         for line in lines:
-            epoch, train_loss, test_acc, test_loss = [float(x) for x in line.strip().split()]
+            epoch, train_acc, train_loss, test_acc, test_loss = [float(x) for x in line.strip().split()]
             if epoch not in results:
-                results[epoch] = {'train_losses': [], 'test_accuracies': [], 'test_losses': []}
+                results[epoch] = {'train_accuracies': [], 'train_losses': [], 'test_accuracies': [], 'test_losses': []}
 
+            results[epoch]['train_accuracies'].append(train_acc)
             results[epoch]['train_losses'].append(train_loss)
             results[epoch]['test_accuracies'].append(test_acc)
             results[epoch]['test_losses'].append(test_loss)
@@ -240,4 +242,3 @@ if __name__ == '__main__':
 
     # plot the mean results
     plot_mean()
-

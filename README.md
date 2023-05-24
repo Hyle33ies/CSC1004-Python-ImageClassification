@@ -1,6 +1,9 @@
 # CSC1004-python-project
 
+Scores: 100/100
+
 ## Task description
+
 The project is about using Convolutional Neural Networks (CNN) to classify handwritten digits.
 ![minist-img](./imgs/abc.webp "minist")
 
